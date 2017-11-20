@@ -18,16 +18,12 @@ You can also create links to transferred files to another path. Typically python
 ## Embed it in your application
 
 ## Manual launch
-> Usage: pyremotedev --master|--slave -D|--dir "directory to watch" <-c|--conf "config filepath"> <-d|--debug> <-h|--help>
->
->  -m|--master: launch remotesync as master, files from watched directory will be sent to remote slave.
-> 
->  -s|--slave: launch remotesync as slave, app will wait for sync operations.
->
->  -c|--conf: configuration filepath. If not specify use user home dir one.
->
->  -d|--debug: enable debug.
-> 
->  -v|--version: display version.
->
->  -h|--help: display this help.
+```
+Usage: pyremotedev --master|--slave -D|--dir "directory to watch" <-c|--conf "config filepath"> <-d|--debug> <-h|--help>
+  -m|--master: launch remotesync as master, files from watched directory will be sent to remote slave.
+  -s|--slave: launch remotesync as slave, app will wait for sync operations.
+  -c|--conf: configuration filepath. If not specify use user home dir one.
+  -d|--debug: enable debug.
+  -v|--version: display version.
+  -h|--help: display this help.
+```
