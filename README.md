@@ -31,11 +31,16 @@ Usage: pyremotedev --master|--slave -D|--dir "directory to watch" <-c|--conf "co
   -h|--help: display this help.
 ```
 
-### Create profile
+### On development environment
+To manage profiles or choose one:
 > pyremotedev --master
 
-### On development environment
+To directly launch application and bypass wizard
 > pyremotedev --master --prof "myprofile"
 
 ### On remote environment
+To manage profiles or choose one:
+> pyremotedev --slave
+
+To directly launch application and bypass wizard
 > pyremotedev --slave --prof "myprofile"
