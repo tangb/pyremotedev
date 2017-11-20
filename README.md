@@ -1,6 +1,8 @@
 # pyremotedev
 This utility helps you developping with Python and push your changes on a remote device such as Raspberry pi.
-It isn't limited on .py files and can sync all files you want (typically you can use it to develop ui)
+
+It isn't limited on .py files and can sync all files you want (typically you can use it to develop ui).
+
 It does not help you debugging but it can returns you output logs from python application.
 
 ## Installation
