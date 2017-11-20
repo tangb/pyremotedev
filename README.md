@@ -64,4 +64,4 @@ To directly launch application and bypass wizard
 > pyremotedev --slave --prof "myprofile"
 
 ## Embed it in your application
-
+TODO
