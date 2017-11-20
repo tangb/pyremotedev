@@ -1,11 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
+import logging
+import getopt
+import sys
+import time
+from appdirs import user_data_dir
 from pyremotedev import pyremotedev
 
 logging.basicConfig(level=logging.INFO, format=u'%(asctime)s %(levelname)s : %(message)s')
 
-APP_NAME = os.path.splitext(__file__)[0]
+APP_NAME = u'pyremotedev'
 APP_AUTHOR = u'tangb'
 
 #main logger
@@ -155,7 +161,7 @@ profile = load_profile(params)
 if params[u'master']:
     #local side: supposed to be the place where developper is working on
     try:
-        master = pyremotedev.RemotePyDevMaster()
+        master = pyremotedev.RemotePyDevMaster(profile)
         master.start()
         while master.isAlive():
             master.join(1.0)
@@ -175,7 +181,7 @@ if params[u'master']:
 else:
     #remote side: supposed to the place where files must be updated (ie a raspberry pi)
     try:
-        slave = pyremotedev.RemotePyDevSlave()
+        slave = pyremotedev.RemotePyDevSlave(profile)
         slave.start()
         while True:
             time.sleep(1.0)

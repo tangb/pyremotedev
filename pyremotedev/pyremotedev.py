@@ -7,9 +7,7 @@ import io
 import os
 import time
 import socket
-import getopt
 import sys
-import appdirs
 import getpass
 import platform
 import subprocess
@@ -580,7 +578,8 @@ class LocalRepositoryHandler(FileSystemEventHandler):
     """
 
     REJECTED_FILENAMES = [
-        u'4913' #vim temp file to check user permissions
+        u'4913', #vim temp file to check user permissions
+        u'.gitignore'
     ]
     REJECTED_EXTENSIONS = [
         u'.swp', #vim
@@ -590,6 +589,10 @@ class LocalRepositoryHandler(FileSystemEventHandler):
     ]
     REJECTED_PREFIXES = [u'~']
     REJECTED_SUFFIXES = [u'~']
+    REJECTED_DIRS = [
+        u'.git',
+        u'.vscode'
+    ]
 
     def __init__(self, synchronizer):
         """
@@ -648,6 +651,11 @@ class LocalRepositoryHandler(FileSystemEventHandler):
         for filename in self.REJECTED_FILENAMES:
             #filter by filename
             if event.src_path.endswith(filename):
+                return True
+        parts = event.src_path.split(os.path.sep)
+        for dir in self.REJECTED_DIRS:
+            #filter by dir
+            if dir in parts:
                 return True
 
         return False
@@ -1015,7 +1023,6 @@ class RemoteClient(Thread):
             executor (RequestExecutor): RequestExecutor instance
         """
         Thread.__init__(self)
-        #Thread.daemon = True #autokill client threads when slave stopped
 
         #members
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -1026,60 +1033,6 @@ class RemoteClient(Thread):
         self.executor = executor
         self.buffer = Buffer(RequestCommand)
         self.running = True
-
-    """
-    def __process_buffer(self, buf):
-        #Process specified buffer rebuilding received request
-        while True:
-            if buf.startswith('::LENGTH='):
-                #extract content from raw
-                _, header, data = buf.split('::', 2)
-                header_length = len(header) + 4 #add length of 2x"::"
-                self.logger.debug('Header="%s" (%d bytes)' % (header, header_length))
-                try:
-                    data_length = int(header.split('=')[1])
-                except ValueError:
-                    #invalid header, remove bad part from it and continue. It will be cleaned during next statement
-                    buf = buf[len(buf)+len(header):]
-                    continue
-
-                #parse data
-                self.logger.debug(u'header length=%d, len(data)=%d' % (data_length, len(data)))
-                if data_length > 0 and buf and len(buf) >= data_length:
-                    #enough data buffered, rebuild request
-
-                    #get data and reduce buffer
-                    data = data[:data_length]
-                    buf = buf[data_length+header_length:]
-                    self.logger.debug('Buffer status (first 10 chars): "%s" (%d bytes)' % (buf[:10], len(buf)))
-
-                    #get request and push to executor
-                    req = bson.loads(data)
-                    request = RequestCommand()
-                    request.from_dict(req)
-                    self.logger.debug(u'Received request: %s' % request)
-                    self.executor.add_request(request)
-
-                else:
-                    #not enough buffer, return to wait for new buffer filling
-                    self.logger.debug('Buffer is not filled enough. Request socket for new data.')
-                    return buf
-
-            elif len(buf) == 0:
-                #no more buffer to read, stop statement
-                return buf
-
-            else:
-                #invalid buffer, it should starts with header!
-                #try to purge buffer head until start of valid new header
-                self.logger.debug(u'Invalid buffer detected, trying to recover to useful buffer... [%s]' % (buf[:10]))
-                pos = buf.find('::LENGTH=')
-                if pos >= 0:
-                    buf = buf[pos:]
-                else:
-                    #no header found, clear buffer
-                    return u''
-    """
 
     def stop(self):
         """
@@ -1686,14 +1639,18 @@ class SlaveConfigFile(ConfigFile):
 class RemotePyDevMaster(Thread):
     """
     Remotepydev master
+
+    Args:
+        profile: profile to use
     """
-    def __init__(self):
+    def __init__(self, profile):
         """
         Constructor
         """
         Thread.__init__(self)
 
         #members
+        self.profile = profile
         self.running = True
         self.logger = logging.getLogger(self.__class__.__name__)
 
@@ -1708,12 +1665,12 @@ class RemotePyDevMaster(Thread):
         Main process
         """
         #create synchronizer
-        synchronizer = Synchronizer(profile[u'remote_host'], profile[u'remote_port'], profile[u'ssh_username'], profile[u'ssh_password'])
+        synchronizer = Synchronizer(self.profile[u'remote_host'], self.profile[u'remote_port'], self.profile[u'ssh_username'], self.profile[u'ssh_password'])
         synchronizer.start()
 
         #create filesystem watchdog
         observer = Observer()
-        observer.schedule(LocalRepositoryHandler(synchronizer), path=profile[u'local_dir'], recursive=True)
+        observer.schedule(LocalRepositoryHandler(synchronizer), path=self.profile[u'local_dir'], recursive=True)
         observer.start()
 
         #main loop
@@ -1742,13 +1699,17 @@ class RemotePyDevSlave(Thread):
     """
     Remotepydev slave
     """
-    def __init__(self):
+    def __init__(self, profile):
         """
         Constructor
+
+        Args:
+            profile: profile to use
         """
         Thread.__init__(self)
 
         #members
+        self.profile = profile
         self.running = True
         self.logger = logging.getLogger(self.__class__.__name__)
 
@@ -1763,7 +1724,7 @@ class RemotePyDevSlave(Thread):
         Main process
         """
         #create request executor
-        executor = RequestExecutor(profile)
+        executor = RequestExecutor(self.profile)
         executor.start()
 
         #remote clients
@@ -1801,199 +1762,3 @@ class RemotePyDevSlave(Thread):
 
         #close properly application
         executor.join()
-
-
-
-
-
-#main application
-if __name__ == '__main__':
-
-    logging.basicConfig(level=logging.INFO, format=u'%(asctime)s %(levelname)s : %(message)s')
-
-    APP_NAME = os.path.splitext(__file__)[0]
-    APP_AUTHOR = u'tangb'
-
-    #main logger
-    logger = logging.getLogger(u'main')
-
-    def reset_logging(level):
-        """
-        Reset main logging
-        """
-        for handler in logging.root.handlers[:]:
-            logging.root.removeHandler(handler)
-
-        logging.basicConfig(level=level, format=u'%(asctime)s %(levelname)s : %(message)s')
-
-    def usage(error=''):
-        """
-        Application usage
-        Args:
-            error (string): error message to display
-        """
-        if len(error) > 0:
-            print(u'Error: %s' % error)
-            print(u'')
-            print(u'Usage: pyremotedev --master|--slave -D|--dir "directory to watch" <-c|--conf "config filepath"> <-p|--prof "profile"> <-d|--debug> <-h|--help>')
-            print(u' -m|--master: launch remotesync as master, files from watched directory will be sent to remote slave.')
-            print(u' -s|--slave: launch remotesync as slave, app will wait for sync operations.')
-            print(u' -c|--conf: configuration filepath. If not specify use user home dir one')
-            print(u' -p|--prof: profile name to launch (doesn\'t launch wizard)')
-            print(u' -d|--debug: enable debug.')
-            print(u' -v|--version: display version.')
-            print(u' -h|--help: display this help.')
-
-    def version():
-        """
-        Display version
-        """
-        print(u'%s version %s' % (os.path.splitext(__file__)[0], VERSION))
-
-    def application_parameters():
-        """
-        Parse command line and return list of application parameters
-
-        Return:
-            dict: list of application parameters::
-                {
-                    master (bool): True if application is launched as master
-                    slave (bool): True if application is launched as slave
-                    debug (bool): True if debug enabled
-                    conf (string): Path of config file to open
-                    prof (string): profile name to launch (drop startup select wizard)
-                }
-        """
-        params = {
-            u'master': False,
-            u'slave': False,
-            u'debug': False,
-            u'conf' : None,
-            u'prof': None
-        }
-
-        try:
-            opts, args = getopt.getopt(sys.argv[1:], u'mshdc:vp:', [u'master', u'slave', u'help', u'debug', u'conf=', u'version', u'prof='])
-
-            for opt, arg in opts:
-                if opt in (u'-m', u'--master'):
-                    if params[u'slave']:
-                        raise Exception(u'You can\'t enable both slave and master mode')
-                    params[u'master'] = True
-                elif opt in (u'-m', u'--slave'):
-                    if params['master']:
-                        raise Exception(u'You can\'t enable both slave and master mode')
-                    params[u'slave'] = True
-                elif opt in (u'-h', u'--help'):
-                    usage()
-                    sys.exit(2)
-                elif opt in (u'-d', u'--debug'):
-                    params[u'debug'] = True
-                elif opt in (u'-c', u'--conf'):
-                    params[u'conf'] = arg
-                    if not os.path.exists(params[u'conf']):
-                        raise Exception(u'Specified config file does not exist (%s)' % params[u'conf'])
-                elif opt in (u'-v', u'--version'):
-                    version()
-                    sys.exit(2)
-                elif opt in (u'-p', u'--prof'):
-                    params[u'prof'] = arg
-                    #profile existence will be checked later
-
-            #check some parameters
-            if not params[u'master'] and not params[u'slave']:
-                raise Exception(u'You must launch application as master or slave')
-
-            #default config path
-            if params[u'conf'] is None:
-                path = user_data_dir(APP_NAME, APP_AUTHOR)
-                if params[u'master']:
-                    params[u'conf'] = os.path.join(path, u'master.conf')
-                else:
-                    params[u'conf'] = os.path.join(path, u'slave.conf')
-
-        except Exception as e:
-            #logger.exception('Error parsing command line arguments:')
-            usage(str(e))
-            sys.exit(1)
-
-        return params
-
-    def load_profile(params):
-        """
-        Load profile to run
-
-        Args:
-            params (dict): application parameters
-        """
-        #load conf according to master/slave switch
-        if params[u'master']:
-            conf = MasterConfigFile(params[u'conf'])
-        else:
-            conf = SlaveConfigFile(params[u'conf'])
-
-        profile = None
-        if params[u'prof'] is None:
-            #show profile wizard
-            profile = conf.select_profile()
-            logger.debug(u'Selected profile: %s' % profile)
-        else:
-            #profile selected from command line
-            profiles = conf.load()
-            if params[u'prof'] not in profiles.keys():
-                logger.fatal(u'Profile "%s" does not exist.' % params[u'prof'])
-                sys.exit(1)
-            profile = profiles[params[u'prof']]
-            logger.debug(u'Selected profile: %s' % profile)
-
-        return profile
-
-    #get application parameters
-    params = application_parameters()
-
-    #reset logging
-    if params[u'debug']:
-        reset_logging(logging.DEBUG)
-
-    #load application profile
-    profile = load_profile(params)
-
-    if params[u'master']:
-        #local side: supposed to be the place where developper is working on
-        try:
-            master = RemotePyDevMaster()
-            master.start()
-            while master.isAlive():
-                master.join(1.0)
-
-        except KeyboardInterrupt:
-            pass
-
-        except:
-            logger.exception(u'Exception occured during master exceution:')
-
-        finally:
-            logger.info(u'Stopping application...')
-            master.stop()
-
-        master.join()
-
-    else:
-        #remote side: supposed to the place where files must be updated (ie a raspberry pi)
-        try:
-            slave = RemotePyDevSlave()
-            slave.start()
-            while True:
-                time.sleep(1.0)
-
-        except KeyboardInterrupt:
-            pass
-
-        except:
-            logger.exception(u'Exception occured during slave execution:')
-
-        finally:
-            logger.info(u'Stopping application...')
-            slave.stop()
-
-        slave.join()
