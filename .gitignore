@@ -1,1 +1,4 @@
+pyremotedev.egg-info
+dist/
 **/*.pyc
+
