@@ -15,7 +15,7 @@ This will install pyremotedev python module and pyremotedev binary.
 Pyremotedev has been tested on:
 *  Debian/Raspbian
 
-Your host must have ssh server installed and running.
+Your remote host must have ssh server installed and running.
 
 ## How it works
 This utility is supposed to be imported in your python application but you can launch it manually (in this case you can't get output logs) to synchronize your directories.
