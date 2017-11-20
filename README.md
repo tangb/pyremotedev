@@ -9,7 +9,7 @@ It does not help you debugging but it can returns you output logs from python ap
 Install it from pip
 > pip install pyremotedev
 
-This will install pyremotedev in your bin path
+This will install pyremotedev python module and pyremotedev binary.
 
 ## Compatibility
 Pyremotedev has been tested on:
