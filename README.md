@@ -15,15 +15,27 @@ ie: I'm developping my application locally on my desktop computer from my reposi
 
 You can also create links to transferred files to another path. Typically python files from ```/usr/share/pyshared/<mypythonmodule>/``` can be symlinked to ```/usr/lib/python2.7/dist-packages/<mypythonmodule>/```
 
+Console wizard can help you create your profiles.
+
 ## Embed it in your application
 
 ## Manual launch
 ```
 Usage: pyremotedev --master|--slave -D|--dir "directory to watch" <-c|--conf "config filepath"> <-d|--debug> <-h|--help>
-  -m|--master: launch remotesync as master, files from watched directory will be sent to remote slave.
-  -s|--slave: launch remotesync as slave, app will wait for sync operations.
+  -m|--master: launch pyremotedev as master, files from watched directory will be sent to remote slave.
+  -s|--slave: launch pyremotedev as slave, app will wait for sync operations.
   -c|--conf: configuration filepath. If not specify use user home dir one.
+  -p|--prof: profile name to launch (doesn\'t launch wizard)
   -d|--debug: enable debug.
   -v|--version: display version.
   -h|--help: display this help.
 ```
+
+### Create profile
+> pyremotedev --master
+
+### On development environment
+> pyremotedev --master --prof "myprofile"
+
+### On remote environment
+> pyremotedev --slave --prof "myprofile"
