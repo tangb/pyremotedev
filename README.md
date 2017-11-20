@@ -20,7 +20,7 @@ Your host must have ssh server installed and running.
 ## How it works
 This utility is supposed to be imported in your python application but you can launch it manually (in this case you can't get output logs) to synchronize your directories.
 
-Pyremotedev opens a tunnel between your computer and your remote host. Then it opens sockets to transfer requests and retrieve logs.
+Pyremotedev opens a tunnel between your computer and your remote host. Then it opens sockets to transfer requests and retrieve logs. Files are only sync from your dev env to remote, not from remote to dev env!
 
 ### Profiles
 This application is based on profiles (different profiles on master and slave).
