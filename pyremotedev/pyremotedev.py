@@ -13,6 +13,7 @@ import platform
 import subprocess
 import configparser
 import shutil
+from version import __version__
 from appdirs import user_data_dir
 from threading import Thread
 from collections import deque
@@ -25,9 +26,8 @@ try:
 except Exception:
     pass
 
-VERSION = '0.0.2'
 SEPARATOR = u'$_$'
-
+VERSION = __version__
 
 
 class RequestInfo(object):

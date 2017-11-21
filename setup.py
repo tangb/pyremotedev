@@ -2,7 +2,7 @@ try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
-from pyremotedev.pyremotedev import VERSION
+from pyremotedev import __version__ as VERSION
 
 setup(
     name = 'pyremotedev',
