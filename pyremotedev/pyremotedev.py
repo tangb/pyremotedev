@@ -25,7 +25,7 @@ try:
 except Exception:
     pass
 
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 SEPARATOR = u'$_$'
 
 
@@ -1401,7 +1401,17 @@ class ConfigFile():
 
 
 class MasterConfigFile(ConfigFile):
+    """
+    Master config file handler
+    """
+
     def __init__(self, config_file):
+        """
+        Constructor
+
+        Args:
+            config_file (string): config file path
+        """
         ConfigFile.__init__(self, config_file)
 
     def _get_profile_values(self, profile_name, profile):
@@ -1502,12 +1512,15 @@ class MasterConfigFile(ConfigFile):
 
 class SlaveConfigFile(ConfigFile):
     """
-    Slave config handler
+    Slave config file handler
     """
 
     def __init__(self, config_file):
         """
         Constructor
+
+        Args:
+            config_file (string): config file path
         """
         ConfigFile.__init__(self, config_file)
 
