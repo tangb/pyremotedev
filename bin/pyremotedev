@@ -161,7 +161,7 @@ profile = load_profile(params)
 if params[u'master']:
     #local side: supposed to be the place where developper is working on
     try:
-        master = pyremotedev.RemotePyDevMaster(profile)
+        master = pyremotedev.PyRemoteDevMaster(profile)
         master.start()
         while master.isAlive():
             master.join(1.0)
@@ -181,7 +181,7 @@ if params[u'master']:
 else:
     #remote side: supposed to the place where files must be updated (ie a raspberry pi)
     try:
-        slave = pyremotedev.RemotePyDevSlave(profile)
+        slave = pyremotedev.PyRemoteDevSlave(profile)
         slave.start()
         while True:
             time.sleep(1.0)

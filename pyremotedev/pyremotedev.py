@@ -11,8 +11,12 @@ import sys
 import getpass
 import platform
 import subprocess
-import configparser
+try:
+    import configparser
+except:
+    import ConfigParser as configparser
 import shutil
+import traceback
 from version import __version__
 from appdirs import user_data_dir
 from threading import Thread
@@ -48,7 +52,7 @@ class RequestInfo(object):
         if self.goodbye:
             return u'RequestInfo(goodbye)'
         elif self.log_record:
-            return u'RequestInfo(log_record: %s)' % self.log_record.message
+            return u'RequestInfo(log_record: %s)' % self.log_record['msg']
 
     def from_dict(self, request):
         """
@@ -312,9 +316,10 @@ class Synchronizer(Thread):
         self.socket = None
         self.__send_socket_attemps = 0
         self.buffer = Buffer(RequestInfo)
+        self.remote_logger = None
 
         #init remote logger
-        self.remote_logger = self.__init_remote_logger()
+        self.init_remote_logger()
 
     def __del__(self):
         """
@@ -322,29 +327,18 @@ class Synchronizer(Thread):
         """
         self.stop()
 
-    def __init_remote_logger(self):
+    def init_remote_logger(self):
         """
         Init remote logger
-
-        Return:
-            Logger: logger instance
         """
-        remote_logger = logging.getLogger('remoteLogger')
-
-        #remove handlers inherited from root logger
-        for handler in remote_logger.handlers[:]:
-            remote_logger.removeHandler(handler)
-
-        #add new handler (file handler only)
-        hdl = RotatingFileHandler('remote.log', maxBytes=2048000, backupCount=2, encoding='utf-8')
-        fmt = logging.Formatter('%(asctime)s %(name)-12s[%(filename)s:%(lineno)d] %(levelname)-5s : %(message)s')
-        hdl.setFormatter(fmt)
-        remote_logger.addHandler(hdl)
-
-        #always configure level to DEBUG
-        remote_logger.setLevel(logging.DEBUG)
-
-        return remote_logger
+        #create new handler
+        handler = RotatingFileHandler('remote_%s.log' % self.remote_host, maxBytes=2048000, backupCount=2, encoding='utf-8')
+        formatter = logging.Formatter('%(asctime)s %(name)-12s[%(filename)s:%(lineno)d] %(levelname)-5s : %(message)s')
+        handler.setFormatter(formatter)
+        
+        #create new remote logger
+        self.remote_logger = logging.getLogger('remote')
+        self.remote_logger.handlers = [handler]
 
     def __open_tunnel(self):
         """
@@ -379,12 +373,17 @@ class Synchronizer(Thread):
             bool: True if socket connected successfully
         """
         try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.settimeout(0.5)
-            self.socket.connect((u'127.0.0.1', self.forward_port))
-            self.__socket_connected = True
+            if self.tunnel and self.tunnel.is_active:
+                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.socket.settimeout(0.5)
+                self.socket.connect((u'127.0.0.1', self.tunnel.local_bind_port))
+                self.__socket_connected = True
 
-            return True
+                return True
+
+            else:
+                #disconnect tunnel ?
+                return False
 
         except Exception:
             #self.logger.exception(u'Socket exception:')
@@ -542,14 +541,26 @@ class Synchronizer(Thread):
                     request = self.buffer.process(raw)
                     if not request:
                         pass
+
                     elif request.goodbye:
                         #client disconnect, force server disconnection to allow new connection
                         self.logger.debug(u'Client is disconnected')
                         self.disconnect()
+
                     elif request.log_record:
                         #received log record
                         self.logger.debug(u'Client sent log record')
-                        self.remote_logger.handle(request.log_record)
+                        record = self.remote_logger.makeRecord(
+                            request.log_record['name'],
+                            request.log_record['lvl'],
+                            request.log_record['fn'],
+                            request.log_record['lno'],
+                            request.log_record['msg'],
+                            request.log_record['args'],
+                            request.log_record['exc_info'],
+                            request.log_record['func']
+                        )
+                        self.remote_logger.handle(record)
 
             except socket.timeout:
                 pass
@@ -594,15 +605,27 @@ class LocalRepositoryHandler(FileSystemEventHandler):
         u'.vscode'
     ]
 
-    def __init__(self, synchronizer):
+    def __init__(self, synchronizer, base_dir):
         """
         Constructor
 
         Args:
             synchronizer (Synchronizer): synchronizer instance
+            base_dir (string): base dir (scanned one)
         """
         self.sync = synchronizer
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.base_dir = base_dir
+
+    def __clean_path(self, path):
+        """
+        Get valid path making it relative to scanned dir and removing first path separator
+        """
+        path = path.replace(self.base_dir, '')
+        if path.startswith(os.path.sep):
+            path = path[1:]
+
+        return path
 
     def __get_type(self, event):
         """
@@ -623,38 +646,45 @@ class LocalRepositoryHandler(FileSystemEventHandler):
         Return:
             bool: True if event must be filtered
         """
+        #filter invalid event
         if not event:
-            #filter invalid event
             return True
+
+        #filter event on current script
         if event.src_path == u'.%s' % __file__:
-            #filter event on current script
             return True
+
+        #filter root event
         if event.src_path == u'.':
-            #filter root event
             return True
+
+        #filter invalid extension
         src_ext = os.path.splitext(event.src_path)[1]
         if src_ext in self.REJECTED_EXTENSIONS:
-            #filter invalid extension
             return True
+
+        #filter by prefix
         for prefix in self.REJECTED_PREFIXES:
-            #filter by prefix
             if event.src_path.startswith(prefix):
                 return True
             if getattr(event, u'dest_path', None) and event.dest_path.startswith(prefix):
                 return True
+
+        #filter by suffix
         for suffix in self.REJECTED_SUFFIXES:
-            #filter by suffix
             if event.src_path.endswith(suffix):
                 return True
             if getattr(event, u'dest_path', None) and event.dest_path.endswith(prefix):
                 return True
+
+        #filter by filename
         for filename in self.REJECTED_FILENAMES:
-            #filter by filename
             if event.src_path.endswith(filename):
                 return True
+
+        #filter by dir
         parts = event.src_path.split(os.path.sep)
         for dir in self.REJECTED_DIRS:
-            #filter by dir
             if dir in parts:
                 return True
 
@@ -679,7 +709,7 @@ class LocalRepositoryHandler(FileSystemEventHandler):
         req = RequestCommand()
         req.command = RequestCommand.COMMAND_UPDATE
         req.type = self.__get_type(event)
-        req.src = event.src_path
+        req.src = self.__clean_path(event.src_path)
         if req.type == RequestCommand.TYPE_DIR:
             self.logger.debug(u'Drop update on directory')
             return
@@ -704,8 +734,8 @@ class LocalRepositoryHandler(FileSystemEventHandler):
         req = RequestCommand()
         req.command = RequestCommand.COMMAND_MOVE
         req.type = self.__get_type(event)
-        req.src = event.src_path
-        req.dest = event.dest_path
+        req.src = self.__clean_path(event.src_path)
+        req.dest = self.__clean_path(event.dest_path)
         self.send_request(req)
 
     def on_created(self, event):
@@ -716,7 +746,7 @@ class LocalRepositoryHandler(FileSystemEventHandler):
         req = RequestCommand()
         req.command = RequestCommand.COMMAND_CREATE
         req.type = self.__get_type(event)
-        req.src = event.src_path
+        req.src = self.__clean_path(event.src_path)
         if req.type == RequestCommand.TYPE_FILE:
             #send file content
             try:
@@ -735,7 +765,7 @@ class LocalRepositoryHandler(FileSystemEventHandler):
         req = RequestCommand()
         req.command = RequestCommand.COMMAND_DELETE
         req.type = self.__get_type(event)
-        req.src = event.src_path
+        req.src = self.__clean_path(event.src_path)
         self.send_request(req)
 
 
@@ -747,17 +777,20 @@ class RequestExecutor(Thread):
     Request executor will process request command on remote filesystem
     """
 
-    def __init__(self, mappings):
+    def __init__(self, mappings, debug=False):
         """
         Constructor
 
         Args:
             mappings (dict): directory mappings (src<=>dst)
+            debug (bool): enable debug
         """
         Thread.__init__(self)
 
         #members
         self.logger = logging.getLogger(self.__class__.__name__)
+        if debug:
+            self.logger.setLevel(logging.DEBUG)
         self.running = True
         self.__queue = deque(maxlen=200)
         self.mappings = mappings
@@ -811,6 +844,8 @@ class RequestExecutor(Thread):
         Return:
             list: list of path parts
         """
+        if path is None:
+            path = u''
         parts = []
         (path, tail) = os.path.split(path)
         while path and tail:
@@ -917,6 +952,10 @@ class RequestExecutor(Thread):
                     if not os.path.exists(src):
                         os.makedirs(src)
                 else:
+                    if not os.path.exists(os.path.dirname(src)):
+                        #create non existing file path
+                        os.makedirs(os.path.dirname(src))
+
                     #create new file
                     fd = io.open(src, u'wb')
                     fd.write(request.content)
@@ -924,6 +963,10 @@ class RequestExecutor(Thread):
 
                     #create link
                     if link_src and not os.path.exists(link_src):
+                        if not os.path.exists(os.path.dirname(link_src)):
+                            #create non existing link path
+                            os.makedirs(os.path.dirname(link_src))
+                        #create symlink
                         os.symlink(src, link_src)
 
             elif request.command == RequestCommand.COMMAND_DELETE:
@@ -1012,7 +1055,7 @@ class RemoteClient(Thread):
     It will execute request commands on remote host.
     """
 
-    def __init__(self, ip, port, clientsocket, executor):
+    def __init__(self, ip, port, clientsocket, executor, debug):
         """
         Constructor
 
@@ -1021,11 +1064,14 @@ class RemoteClient(Thread):
             port (int): repository connection port
             clientsocket (socket): socket instance returned by accept
             executor (RequestExecutor): RequestExecutor instance
+            debug (bool): enable debug
         """
         Thread.__init__(self)
 
         #members
         self.logger = logging.getLogger(self.__class__.__name__)
+        if debug:
+            self.logger.setLevel(logging.DEBUG)
         self.ip = ip
         self.port = port
         self.clientsocket = clientsocket
@@ -1033,6 +1079,8 @@ class RemoteClient(Thread):
         self.executor = executor
         self.buffer = Buffer(RequestCommand)
         self.running = True
+        self.__log_handler = None
+        self.__log_handler_installed = False
 
     def stop(self):
         """
@@ -1051,17 +1099,38 @@ class RemoteClient(Thread):
         if self.clientsocket:
             #prepare request
             request = RequestInfo()
-            request.log_record = record
+            if record.__dict__['exc_info']:
+                msg = record.__dict__['msg'] + '\nTraceback (most recent call last):\n' + ''.join(traceback.format_tb(record.__dict__['exc_info'][2])) + type(record.__dict__['exc_info'][1]).__name__ + ': ' + record.__dict__['exc_info'][1].message
+            else:
+                msg = record.__dict__['msg']
+            request.log_record = {
+                'name': record.__dict__['name'],
+                'lvl': record.__dict__['levelno'],
+                'fn': record.__dict__['filename'],
+                'lno': record.__dict__['lineno'],
+                'msg': msg,
+                'args': None,
+                'exc_info': None,
+                'func': record.__dict__['funcName']
+            }
 
             #send request
             try:
+                if os.path.basename(__file__).startswith(record.filename):
+                    #avoid infinite loop and useless logs from pyremotedev module
+                    return
+
+                #send application log
+                #self.logger.debug('Send log from %s [%s]' % (record.name, record.filename))
                 data = bson.dumps(request.to_dict())
                 raw = '::LENGTH=%d::%s' % (len(data), data)
-                self.logger.debug('==> socket send log record (%d bytes) %s' % (len(raw), request))
+                #self.logger.debug('==> socket send log record (%d bytes) %s' % (len(raw), request))
                 self.clientsocket.send(raw)
 
             except Exception:
                 self.logger.exception(u'Exception during log sending:')
+                #close remote client
+                self.stop()
 
     def get_log_handler(self):
         """
@@ -1070,7 +1139,27 @@ class RemoteClient(Thread):
         Return:
             RemoteLogHandler: log handler
         """
-        return RemoteLogHandler(self.send_log)
+        if not self.__log_handler:
+            self.__log_handler = RemoteLogHandler(self.send_log)
+
+        return self.__log_handler
+
+    def install_remote_logging(self):
+        """
+        Install remote logging on root logger
+        """
+        root_logger = logging.getLogger()
+        root_logger.addHandler(self.get_log_handler())
+        self.__log_handler_installed = True
+
+    def uninstall_remote_logging(self):
+        """
+        Uninstall remote logging from root logger
+        """
+        if self.__log_handler_installed:
+            root_logger = logging.getLogger()
+            root_logger.removeHandler(self.get_log_handler())
+            self.__log_handler_installed = False
 
     def run(self):
         """
@@ -1078,10 +1167,11 @@ class RemoteClient(Thread):
         Then it send it to request executor instance
         """
         self.logger.debug(u'Connection of %s:%s' % (self.ip, self.port))
-        #data_length = 0
-        #buf = ''
-        while self.running:
 
+        #install log handler
+        self.install_remote_logging()
+
+        while self.running:
             try:
                 raw = self.clientsocket.recv(1024)
                 self.logger.debug(u'<<<<<<<<<< recv socket raw=%d bytes' % len(raw))
@@ -1092,8 +1182,6 @@ class RemoteClient(Thread):
                     break
 
                 #process buffer with received raw data
-                #buf += raw
-                #buf = self.__process_buffer(buf)
                 request = self.buffer.process(raw)
                 if request:
                     self.executor.add_request(request)
@@ -1105,20 +1193,25 @@ class RemoteClient(Thread):
                 self.logger.exception(u'Exception for %s:%s:' % (self.ip, self.port))
 
         #properly close server connection
-        request = RequestInfo()
-        request.goodbye = True
-        data = bson.dumps(request.to_dict())
-        raw = '::LENGTH=%d::%s' % (len(data), data)
-        self.logger.debug('====> socket send request (%d bytes) %s' % (len(raw), request))
-        self.clientsocket.send(raw)
+        try:
+            self.logger.debug(u'Send goodbye')
+            request = RequestInfo()
+            request.goodbye = True
+            data = bson.dumps(request.to_dict())
+            raw = '::LENGTH=%d::%s' % (len(data), data)
+            self.logger.debug('====> socket send request (%d bytes) %s' % (len(raw), request))
+            self.clientsocket.send(raw)
 
-        #close socket
-        if self.clientsocket:
-            try:
+            #close socket
+            if self.clientsocket:
                 self.clientsocket.shutdown(socket.SHUT_WR)
                 self.clientsocket.close()
-            except Exception:
-                pass
+
+        except Exception:
+            pass
+
+        #uninstall log handler
+        self.uninstall_remote_logging()
 
         self.logger.debug(u'Thread stopped for %s:%s' % (self.ip, self.port))
 
@@ -1191,7 +1284,10 @@ class ConfigFile():
             #convert config parser to dict
             profiles = {}
             for profile_name in config.sections():
-                profiles[profile_name] = self._get_profile_values(profile_name, config[profile_name])
+                profile = {}
+                for option in config.options(profile_name):
+                    profile[option] = config.get(profile_name, option)
+                profiles[profile_name] = self._get_profile_values(profile_name, profile)
 
             return profiles
 
@@ -1370,7 +1466,9 @@ class ConfigFile():
             config = self.__load_config_parser()
 
             #append new profile
-            config[profile_name] = profile
+            config.add_section(profile_name)
+            for key in profile:
+                config.set(profile_name, key, profile[key])
 
             #save config
             self.__save_config_parser(config)
@@ -1388,7 +1486,7 @@ class ConfigFile():
 
             #append new profile
             if profile_name in config.sections():
-                del config[profile_name]
+                config.remove_section(profile_name)
 
             #save config
             self.__save_config_parser(config)
@@ -1504,7 +1602,7 @@ class MasterConfigFile(ConfigFile):
         Return:
             string: entry string
         """
-        return u'%s [%s:%s]' % (profile_name, profile[u'remote_host'], profile[u'remote_port'])
+        return u'%s [%s:%s - %s]' % (profile_name, profile[u'remote_host'], profile[u'remote_port'], profile[u'local_dir'])
 
 
 
@@ -1606,7 +1704,7 @@ class SlaveConfigFile(ConfigFile):
             link_ok = False
             while not link_ok:
                 link = input(u'Create link into directory (empty when no link): ')
-                if link == u'q':
+                if link == u'q' or link == u'':
                     break
                 if not os.path.exists(link):
                     print(u' --> Specified path does not exist')
@@ -1616,10 +1714,7 @@ class SlaveConfigFile(ConfigFile):
                 break
 
             #save new mapping
-            if link:
-                mappings[src] = u'%s%s%s' % (dest, SEPARATOR, link)
-            else:
-                mappings[src] = u'dest'
+            mappings[src] = u'%s%s%s' % (dest, SEPARATOR, link)
 
         #return new profile
         return (
@@ -1635,23 +1730,20 @@ class SlaveConfigFile(ConfigFile):
             string: entry string
         """
         mapping = u''
-        if len(profile) > 0:
-            src = profile.keys()[0]
+        for src in profile.keys():
             dest = profile[src][u'dest']
             link = profile[src][u'link']
-            if not link:
-                link = u'(no link)'
-            else:
-                link = u'with link to %s' % link
-            mapping = u'[%s<=>%s %s]' % (src, dest, link)
+            if link:
+                link = u' & %s' % link
+            mapping += u'[%s=>%s%s]' % (src, dest, link)
         return u'%s - %d mappings %s' % (profile_name, len(profile), mapping)
 
 
 
 
-class RemotePyDevMaster(Thread):
+class PyRemoteDevMaster(Thread):
     """
-    Remotepydev master
+    Pyremotedev master
 
     Args:
         profile: profile to use
@@ -1663,10 +1755,10 @@ class RemotePyDevMaster(Thread):
         Thread.__init__(self)
 
         #members
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.profile = profile
         self.running = True
-        self.logger = logging.getLogger(self.__class__.__name__)
-
+        
     def stop(self):
         """
         Stop master
@@ -1677,13 +1769,13 @@ class RemotePyDevMaster(Thread):
         """
         Main process
         """
-        #create synchronizer
+        #start synchronizer
         synchronizer = Synchronizer(self.profile[u'remote_host'], self.profile[u'remote_port'], self.profile[u'ssh_username'], self.profile[u'ssh_password'])
         synchronizer.start()
 
         #create filesystem watchdog
         observer = Observer()
-        observer.schedule(LocalRepositoryHandler(synchronizer), path=self.profile[u'local_dir'], recursive=True)
+        observer.schedule(LocalRepositoryHandler(synchronizer, self.profile[u'local_dir']), path=self.profile[u'local_dir'], recursive=True)
         observer.start()
 
         #main loop
@@ -1708,16 +1800,18 @@ class RemotePyDevMaster(Thread):
 
 
 
-class RemotePyDevSlave(Thread):
+class PyRemoteDevSlave(Thread):
     """
-    Remotepydev slave
+    Pyremotedev slave
     """
-    def __init__(self, profile):
+    def __init__(self, profile, remote_logging=True, debug=False):
         """
         Constructor
 
         Args:
-            profile: profile to use
+            profile (dict): profile to use
+            remote_logging (bool): enable or disable remote logging
+            debug (bool): enable debug
         """
         Thread.__init__(self)
 
@@ -1725,6 +1819,9 @@ class RemotePyDevSlave(Thread):
         self.profile = profile
         self.running = True
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.debug = debug
+        if debug:
+            self.logger.setLevel(logging.DEBUG)
 
     def stop(self):
         """
@@ -1737,13 +1834,14 @@ class RemotePyDevSlave(Thread):
         Main process
         """
         #create request executor
-        executor = RequestExecutor(self.profile)
+        executor = RequestExecutor(self.profile, self.debug)
         executor.start()
 
-        #remote clients
+        #remotes list
         remotes = []
 
         #main loop
+        last_remote = None
         try:
             #create communication server
             server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1757,10 +1855,16 @@ class RemotePyDevSlave(Thread):
                     server.listen(10)
                     (clientsocket, (ip, port)) = server.accept()
 
+                    #remote remote logging from last remote
+                    if last_remote:
+                        last_remote.uninstall_remote_logging()
+
+                    #instanciate new remote client
                     self.logger.debug(u'New client connection')
-                    new_thread = RemoteClient(ip, port, clientsocket, executor)
-                    remotes.append(new_thread)
-                    new_thread.start()
+                    last_remote = RemoteClient(ip, port, clientsocket, executor, self.debug)
+                    remotes.append(last_remote)
+                    last_remote.start()
+                    last_remote.install_remote_logging()
 
                 except socket.timeout:
                     pass
