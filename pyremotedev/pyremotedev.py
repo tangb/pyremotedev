@@ -977,10 +977,11 @@ class RequestExecutor(Thread):
                         shutil.rmtree(src)
                 else:
                     #remove associated symlink firstly
-                    self.logger.debug('=======> %s %s' % (link_src, os.path.exists(link_src)))
-                    if link_src and os.path.exists(link_src):
-                        self.logger.debug('Remove link_src: %s' % link_src)
-                        os.remove(link_src)
+                    if link_src:
+                        self.logger.debug('=======> %s %s' % (link_src, os.path.exists(link_src)))
+                        if os.path.exists(link_src):
+                            self.logger.debug('Remove link_src: %s' % link_src)
+                            os.remove(link_src)
 
                     #delete file
                     if os.path.exists(src):
