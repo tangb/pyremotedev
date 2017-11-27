@@ -377,9 +377,13 @@ class Synchronizer(Thread):
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.socket.settimeout(0.5)
                 self.socket.connect((u'127.0.0.1', self.tunnel.local_bind_port))
-                self.__socket_connected = True
 
-                return True
+                #test if remote service is really running
+                for i in range(8):
+                    self.socket.send('ping')
+                    time.sleep(0.25)
+
+                self.__socket_connected = True
 
             else:
                 #disconnect tunnel ?
@@ -389,7 +393,7 @@ class Synchronizer(Thread):
             #self.logger.exception(u'Socket exception:')
             self.__socket_connected = False
 
-        return False
+        return self.__socket_connected
 
     def connect(self):
         """
@@ -1770,6 +1774,9 @@ class PyRemoteDevMaster(Thread):
         """
         Main process
         """
+        if not os.path.exists(self.profile[u'local_dir']):
+            raise Exception(u'Directory "%s" does not exist' % self.profile[u'local_dir'])
+
         #start synchronizer
         synchronizer = Synchronizer(self.profile[u'remote_host'], self.profile[u'remote_port'], self.profile[u'ssh_username'], self.profile[u'ssh_password'])
         synchronizer.start()
