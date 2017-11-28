@@ -41,6 +41,19 @@ Typical usage: I'm developping my application on my desktop computer from my clo
 
 You can also create symbolic links to uploaded files into another path. Typically python files from ```/usr/share/pyshared/<mypythonmodule>/``` can be symlinked to ```/usr/lib/python2.7/dist-packages/<mypythonmodule>/```
 
+### Log handling
+Pyremotedev is able to watch for application logs and write them in new dev env log file.
+
+The local log file is called remote_<host>.log.
+ 
+If you embed pyremodev python module directly on your application, it can catches your application log messages (using new loghandler).
+
+It also can watch for local file changes. To configure this case, simply fill log file entry in your profile.
+
+Finally you can disable this feature.
+
+Follow your remote logs using tailf (or tail -f) on the new remote log file.
+
 ## Manual launch
 ```
 Usage: pyremotedev --master|--slave -D|--dir "directory to watch" <-c|--conf "config filepath"> <-d|--debug> <-h|--help>
