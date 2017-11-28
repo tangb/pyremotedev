@@ -1985,7 +1985,7 @@ class PyRemoteDevSlave(Thread):
 
         Args:
             profile (dict): profile to use
-            remote_logging (bool): enable or disable remote logging
+            remote_logging (bool): enable or disable internal remote logging
             debug (bool): enable debug
         """
         Thread.__init__(self)
@@ -2038,6 +2038,8 @@ class PyRemoteDevSlave(Thread):
                     self.logger.debug(u'New client connection')
                     if self.profile[u'log_file_path']:
                         last_remote = RemoteClient(ip, port, clientsocket, executor, self.debug, RemoteClient.LOG_HANDLER_EXTERNAL, self.profile[u'log_file_path'])
+                    elif self.remote_logging:
+                        last_remote = RemoteClient(ip, port, clientsocket, executor, self.debug, RemoteClient.LOG_HANDLER_INTERNAL)
                     else:
                         last_remote = RemoteClient(ip, port, clientsocket, executor, self.debug, RemoteClient.LOG_HANDLER_DISABLED)
                     remotes.append(last_remote)
