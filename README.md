@@ -13,8 +13,11 @@ This will install pyremotedev python module and pyremotedev binary.
 
 ## Compatibility
 Pyremotedev has been tested on:
-*  Debian/Raspbian
-*  Windows (please make sure to add ```<python install dir>/scripts``` dir in your path)
+Master on:
+  *  Debian/Raspbian
+  *  Windows (please make sure to add ```<python install dir>/scripts``` dir in your path)
+Slave on:
+  *  Debian/Raspbian
 
 Your remote host must have ssh server installed and running.
 
@@ -26,9 +29,9 @@ Pyremotedev opens a tunnel between your computer and your remote host. Then it o
 ### Profiles
 This application is based on profiles (different profiles on master and slave).
 
-Master profile handles ip and port of your remote host while slave profile handles directory mappings (and symlink).
+Master profile handles ip and port of your remote host while slave profile handles directory mappings (and symlink) and log file to watch
 
-An interactive console wizard can help you create your profiles.
+An interactive console wizard can help you to create your profiles (both master and slave)
 
 Typical usage: I'm developping my application on my desktop computer from my cloned repository and want to test my code on my raspberry pi:
 *  Python files from ```<repo>/sources/``` local dir can be mapped to ```/usr/share/pyshared/<mypythonmodule>/```
@@ -64,5 +67,61 @@ To manage profiles or choose one:
 To directly launch application and bypass wizard
 > pyremotedev --slave --prof "myprofile"
 
-## Embed it in your application
-TODO
+## Embed PyRemoteDev in your application (remote side)
+Example of how to embed pyremotedev in your code to 
+```
+from pyremotedev import pyremotedev
+from threading import Thread
+import logging
+
+#create profile
+PROFILE = {
+    u'raspiot/': {
+        u'dest': u'/usr/share/pyshared/raspiot/',
+        u'link': u'/usr/lib/python2.7/dist-packages/raspiot/'
+    },
+    u'html/': {
+        u'dest': u'/opt/raspiot/html/',
+        u'link': None
+    },
+    u'bin/': {
+        u'dest': u'/usr/bin/',
+        u'link': None
+    }
+}
+
+class MyPyRemoteDev(Thread):
+  def __init__(self):
+    Thread.__init__(self)
+    self.running = True
+    
+  def stop(self):
+    self.running = False
+    
+  def run(self):
+    slave = None
+    try:
+      #start pyremotedev with internal remote logging (catch all message from app logger)
+      slave = pyremotedev.PyRemoteDevSlave(PROFILE, remote_logging=True)
+      slave.start()
+
+      while self.running:
+        time.sleep(0.25)
+
+    except:
+      logging.exception(u'Exception occured during pyremotedev execution:')
+
+    finally:
+      slave.stop()
+
+    slave.join()
+```
+
+## PyRemoteDev as service
+You can launch pyremotedev as service (only available on linux env. Not tested on Mac env but it could be possible).
+```
+systemctl start pyremotedev.service
+```
+
+### Configuration
+By default pyremotedev service will load your first profile, but you can override this behavior specifying the profile to launch on /etc/default/pyremotedev.conf
