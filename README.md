@@ -41,6 +41,25 @@ Typical usage: I'm developping my application on my desktop computer from my clo
 
 You can also create symbolic links to uploaded files into another path. Typically python files from ```/usr/share/pyshared/<mypythonmodule>/``` can be symlinked to ```/usr/lib/python2.7/dist-packages/<mypythonmodule>/```
 
+#### Master profile example
+```
+[myapp]
+  local_dir = /home/me/myapp/
+  ssh_username = pi
+  remote_host = 192.168.1.XX
+  ssh_password = ******
+  remote_port = 22
+```
+
+#### Slave profile example
+```
+[myapp]
+  mypython/ = /usr/share/pyshared/myapp/$_$/usr/lib/python2.7/dist-packages/raspiot/
+  mybin/ = /usr/bin/$_$
+  log_file_path = /var/log/raspiot.log
+  myhtml/ = /opt/myapp/html/$_$
+```
+
 ### Log handling
 Pyremotedev is able to watch for application logs and write them in new dev env log file.
 
