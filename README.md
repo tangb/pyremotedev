@@ -44,7 +44,7 @@ You can also create symbolic links to uploaded files into another path. Typicall
 ### Log handling
 Pyremotedev is able to watch for application logs and write them in new dev env log file.
 
-The local log file is called remote_<host>.log.
+The local log file is called ```remote_<host>.log```.
  
 If you embed pyremodev python module directly on your application, it can catches your application log messages (using new loghandler).
 
