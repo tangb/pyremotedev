@@ -247,6 +247,10 @@ class Buffer(object):
                 #no more buffer to read, stop statement
                 return None
 
+            elif self.buffer.startswith(u'ping'):
+                #handle dummy request
+                self.buffer = self.buffer[4:]
+
             else:
                 #invalid buffer, it should starts with header!
                 #try to purge buffer head until start of valid new header
