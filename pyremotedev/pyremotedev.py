@@ -32,6 +32,7 @@ except Exception:
     pass
 
 SEPARATOR = u'$_$'
+TEST_REQUEST = u'ping'
 VERSION = __version__
 
 
@@ -247,9 +248,9 @@ class Buffer(object):
                 #no more buffer to read, stop statement
                 return None
 
-            elif self.buffer.startswith(u'ping'):
+            elif self.buffer.startswith(TEST_REQUEST):
                 #handle dummy request
-                self.buffer = self.buffer[4:]
+                self.buffer = self.buffer[len(TEST_REQUEST):]
 
             else:
                 #invalid buffer, it should starts with header!
@@ -450,7 +451,7 @@ class Synchronizer(Thread):
 
                 #test if remote service is really running
                 for i in range(8):
-                    self.socket.send('ping')
+                    self.socket.send(TEST_REQUEST)
                     time.sleep(0.25)
 
                 self.__socket_connected = True
