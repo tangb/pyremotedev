@@ -56,7 +56,7 @@ You can also create symbolic links to uploaded files into another path. Typicall
 [myapp]
   mypython/ = /usr/share/pyshared/myapp/$_$/usr/lib/python2.7/dist-packages/raspiot/
   mybin/ = /usr/bin/$_$
-  log_file_path = /var/log/raspiot.log
+  log_file_path = /var/log/myapp.log
   myhtml/ = /opt/myapp/html/$_$
 ```
 
