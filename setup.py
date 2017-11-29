@@ -13,8 +13,8 @@ After=network-online.target
 Requires=network-online.target
 
 [Service]
-ExecStart=/usr/bin/pyremotedev
-WorkingDirectory=/usr/bin
+ExecStart=/usr/bin/pyremotedev --daemon
+WorkingDirectory=/usr/local/bin
 StandardOutput=syslog
 StandardError=syslog
 Restart=always
