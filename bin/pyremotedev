@@ -6,6 +6,7 @@ import logging
 import getopt
 import sys
 import time
+import platform
 from appdirs import user_data_dir
 from pyremotedev import pyremotedev
 
@@ -16,6 +17,13 @@ APP_AUTHOR = u'tangb'
 
 #main logger
 logger = logging.getLogger(u'main')
+
+#default config (linux only)
+DAEMON_PROFILE_NAME = None
+DAEMON_MODE = None
+if platform.system() == 'Linux' and os.path.exists('/etc/default/pyremotedev.conf'):
+    execfile('/etc/default/pyremotedev.conf')
+
 
 def reset_logging(level):
     """
@@ -69,11 +77,12 @@ def application_parameters():
         u'slave': False,
         u'debug': False,
         u'conf' : None,
-        u'prof': None
+        u'prof': None,
+        u'first_prof': False
     }
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], u'mshdc:vp:', [u'master', u'slave', u'help', u'debug', u'conf=', u'version', u'prof='])
+        opts, args = getopt.getopt(sys.argv[1:], u'mshdc:vp:D', [u'master', u'slave', u'help', u'debug', u'conf=', u'version', u'prof=', u'daemon'])
 
         for opt, arg in opts:
             if opt in (u'-m', u'--master'):
@@ -99,6 +108,19 @@ def application_parameters():
             elif opt in (u'-p', u'--prof'):
                 params[u'prof'] = arg
                 #profile existence will be checked later
+            elif opt in (u'-D', u'--daemon'):
+                #daemon mode, use config from /etc/default/pyremotedev.conf
+                if DAEMON_MODE == u'master':
+                    params[u'master'] = True
+                    params[u'slave'] = False
+                else:
+                    params[u'master'] = False
+                    params[u'slave'] = True
+                if DAEMON_PROFILE_NAME:
+                    params[u'prof'] = DAEMON_PROFILE_NAME
+                    params[u'first_prof'] = False
+                else:
+                    params[u'first_prof'] = True
 
         #check some parameters
         if not params[u'master'] and not params[u'slave']:
@@ -133,10 +155,18 @@ def load_profile(params):
         conf = pyremotedev.SlaveConfigFile(params[u'conf'])
 
     profile = None
-    if params[u'prof'] is None:
+    if params[u'first_prof']:
+        #load first profile
+        profiles = conf.load()
+        if len(profiles) == 0:
+            logger.fatal(u'No profile exists. Unable to start.')
+            sys.exit(1)
+        profile = profiles[profiles.keys()[0]]
+
+    elif params[u'prof'] is None:
         #show profile wizard
         profile = conf.select_profile()
-        logger.debug(u'Selected profile: %s' % profile)
+
     else:
         #profile selected from command line
         profiles = conf.load()
@@ -144,8 +174,8 @@ def load_profile(params):
             logger.fatal(u'Profile "%s" does not exist.' % params[u'prof'])
             sys.exit(1)
         profile = profiles[params[u'prof']]
-        logger.debug(u'Selected profile: %s' % profile)
 
+    logger.debug(u'Selected profile: %s' % profile)
     return profile
 
 #get application parameters
@@ -157,8 +187,10 @@ if params[u'debug']:
 
 #load application profile
 profile = load_profile(params)
+logger.debug('Using profile %s' % profile)
 
 if params[u'master']:
+    logger.info(u'Starting pyremotedev in master mode')
     #local side: supposed to be the place where developper is working on
     try:
         master = pyremotedev.PyRemoteDevMaster(profile)
@@ -179,6 +211,7 @@ if params[u'master']:
     master.join()
 
 else:
+    logger.info(u'Starting pyremotedev in slave mode')
     #remote side: supposed to the place where files must be updated (ie a raspberry pi)
     try:
         slave = pyremotedev.PyRemoteDevSlave(profile)
