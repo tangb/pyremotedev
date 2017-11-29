@@ -152,8 +152,12 @@ class MyPyRemoteDev(Thread):
 ## PyRemoteDev as service
 You can launch pyremotedev as service (only available on linux env. Not tested on Mac env but it could be possible).
 ```
+With systemd:
 systemctl start pyremotedev.service
+
+With init:
+/etc/init.d/pyremotedev start
 ```
 
 ### Configuration
-By default pyremotedev service will load your first profile, but you can override this behavior specifying the profile to launch on /etc/default/pyremotedev.conf
+By default pyremotedev service will load your first profile and start as slave, but you can override this behavior specifying the profile to launch on /etc/default/pyremotedev.conf.
