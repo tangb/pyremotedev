@@ -25,14 +25,17 @@ if platform.system() == 'Linux' and os.path.exists('/etc/default/pyremotedev.con
     execfile('/etc/default/pyremotedev.conf')
 
 
-def reset_logging(level):
+def reset_logging(level, to_file=None):
     """
     Reset main logging
     """
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
-    logging.basicConfig(level=level, format=u'%(asctime)s %(levelname)s [%(name)s]: %(message)s')
+    if to_file:
+        logging.basicConfig(filename=to_file, level=level, format=u'%(asctime)s %(levelname)s [%(name)s]: %(message)s')
+    else:
+        logging.basicConfig(level=level, format=u'%(asctime)s %(levelname)s [%(name)s]: %(message)s')
 
 def usage(error=''):
     """
@@ -75,10 +78,11 @@ def application_parameters():
     params = {
         u'master': False,
         u'slave': False,
-        u'debug': False,
         u'conf' : None,
         u'prof': None,
-        u'first_prof': False
+        u'first_prof': False,
+        u'log_level': logging.INFO,
+        u'log_file': None
     }
 
     try:
@@ -97,7 +101,7 @@ def application_parameters():
                 usage()
                 sys.exit(2)
             elif opt in (u'-d', u'--debug'):
-                params[u'debug'] = True
+                params[u'log_level'] = logging.DEBUG
             elif opt in (u'-c', u'--conf'):
                 params[u'conf'] = arg
                 if not os.path.exists(params[u'conf']):
@@ -110,6 +114,7 @@ def application_parameters():
                 #profile existence will be checked later
             elif opt in (u'-D', u'--daemon'):
                 #daemon mode, use config from /etc/default/pyremotedev.conf
+                params[u'log_file'] = u'/var/log/pyremotedev.log'
                 if DAEMON_MODE == u'master':
                     params[u'master'] = True
                     params[u'slave'] = False
@@ -182,8 +187,7 @@ def load_profile(params):
 params = application_parameters()
 
 #reset logging
-if params[u'debug']:
-    reset_logging(logging.DEBUG)
+reset_logging(params[u'log_level'], params[u'log_file'])
 
 #load application profile
 profile = load_profile(params)

@@ -35,7 +35,7 @@ SYSVINIT_SERVICE = """#!/bin/sh
 
 . /lib/lsb/init-functions
 
-BIN_PATH=/usr/bin/
+BIN_PATH=/usr/local/bin/
 PID_PATH=/var/run/
 DAEMON_USER=root
 DAEMON_GROUP=root
@@ -57,7 +57,7 @@ start() {
     echo "Starting $DESC..."
     if [ -f "$BIN_PATH$APP" ]
     then
-        start_module "$APP" "$BIN_PATH$APP" "$PID_PATH$APP.pid"
+        start_module "$APP" "$BIN_PATH$APP" "$PID_PATH$APP.pid" "--daemon"
     fi
 }
 
@@ -86,7 +86,7 @@ force_reload() {
 }
 
 status() {
-    run=`pgrep -f /usr/bin/$APP | wc -l`
+    run=`pgrep -f $BIN_PATH$APP | wc -l`
     if [ $run -eq 1 ]
     then
         echo "$APP is running"
