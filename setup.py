@@ -124,7 +124,14 @@ DAEMON_MODE='slave'
 
 class InstallExtraFiles(install):
     def run(self):
+        #call parent 
         install.run(self)
+
+        #only linux supported for service
+        if platform.system()!='Linux':
+            return
+
+        #create service file
         if os.path.exists('/lib/systemd/system/'):
             #systemd service
             fd = open('/lib/systemd/system/pyremotedev.service', 'w+')
