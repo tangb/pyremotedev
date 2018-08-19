@@ -35,6 +35,10 @@ SEPARATOR = u'$_$'
 TEST_REQUEST = u'ping'
 VERSION = __version__
 
+DEFAULT_SSH_PORT = 22
+DEFAULT_SSH_USERNAME = u'root'
+DEFAULT_SSH_PASSWORD = u'CleepR00t'
+DEFAULT_LOCAL_DIR = os.getcwd()
 
 class RequestInfo(object):
     """
@@ -1370,6 +1374,7 @@ class ConfigFile():
         """
         Load config parser instance:
         """
+        self.logger.debug('Loading config file: %s' % self.config_file)
         if not os.path.exists(os.path.dirname(self.config_file)):
             os.makedirs(os.path.dirname(self.config_file))
 
@@ -1689,32 +1694,41 @@ class MasterConfigFile(ConfigFile):
         """
         profile_name = u''
         while len(profile_name) == 0:
-            profile_name = input(u'Profile name (cannot be empty): ')
+            profile_name = input(u'Profile name: ')
 
         remote_host = u''
         while len(remote_host) == 0:
-            remote_host = input(u'Remote ip address (cannot be empty): ')
+            remote_host = input(u'Remote ip address: ')
 
         remote_port = u''
-        while len(remote_port) == 0:
-            remote_port = input(u'Remote ssh port (cannot be empty): ')
+        error = True
+        while error:
+            remote_port = input(u'Remote ssh port (default %s): ' % DEFAULT_SSH_PORT)
+            if len(remote_port) == 0:
+                remote_port = DEFAULT_SSH_PORT
             try:
                 int(remote_port)
+                error = False
             except:
                 remote_port = ''
+                error = True
 
         ssh_username = u''
         while len(ssh_username) == 0:
-            ssh_username = input(u'Remote ssh username (cannot be empty): ')
+            ssh_username = input(u'Remote ssh username (default %s): ' % DEFAULT_SSH_USERNAME)
+            if len(ssh_username) == 0:
+                ssh_username = DEFAULT_SSH_USERNAME
 
         ssh_password = u''
         while len(ssh_password) == 0:
-            ssh_password = getpass.getpass(u'Remote ssh password (cannot be empty): ')
+            ssh_password = getpass.getpass(u'Remote ssh password (default %s): ' % DEFAULT_SSH_PASSWORD)
+            if len(ssh_password) == 0:
+                ssh_password = DEFAULT_SSH_PASSWORD
         ssh_password = ssh_password.replace(u'%', u'%%')
 
-        local_dir = input(u'Local directory to watch (default .): ')
+        local_dir = input(u'Local directory to watch (default %s): ' % DEFAULT_LOCAL_DIR)
         if len(local_dir) == 0:
-            local_dir = os.getcwd()
+            local_dir = DEFAULT_LOCAL_DIR
 
         #return new profile
         return (
@@ -1735,7 +1749,7 @@ class MasterConfigFile(ConfigFile):
         Return:
             string: entry string
         """
-        return u'%s [%s:%s - %s]' % (profile_name, profile[u'remote_host'], profile[u'remote_port'], profile[u'local_dir'])
+        return u'%s [%s@%s:%s - %s]' % (profile_name, profile[u'ssh_username'], profile[u'remote_host'], profile[u'remote_port'], profile[u'local_dir'])
 
 
 
