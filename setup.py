@@ -127,8 +127,12 @@ class InstallExtraFiles(install):
         #call parent 
         install.run(self)
 
-        #only linux supported for service
+        #install service only on raspbian
         if platform.system()!='Linux':
+            return
+        res = subprocess.Popen(u'cat /etc/os-release | grep -i raspbian | wc -l', stdout=subprocess.PIPE, shell=True)
+        stdout = res.communicate()[0]
+        if stdout.strip()=='0':
             return
 
         #create service file
@@ -161,7 +165,7 @@ setup(
     url = 'http://www.github.com/tangb/pyremotedev/',
     packages = ['pyremotedev'],
     include_package_data = True,
-    install_requires = ['watchdog>=0.8.3,<0.9', 'bson>=0.5.0,<0.6', 'sshtunnel>=0.1.2,<0.2', 'appdirs>=1.4.3,<1.5', 'pygtail>=0.6.1,<0.7'],
+    install_requires = ['watchdog>=0.8.3', 'bson>=0.5.6', 'sshtunnel>=0.1.4', 'appdirs>=1.4.3', 'pygtail>=0.8.0'],
     scripts = ['bin/pyremotedev'],
     cmdclass = {'install': InstallExtraFiles}
 )
