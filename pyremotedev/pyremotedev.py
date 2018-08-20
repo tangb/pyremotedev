@@ -69,7 +69,7 @@ class RequestInfo(object):
         Args:
             request (dict): request under dict format
         """
-        for key in request.keys():
+        for key in list(request.keys()):
             if key == u'goodbye':
                 self.goodbye = request[key]
             elif key == u'log_record':
@@ -176,7 +176,7 @@ class RequestCommand(object):
         Args:
             request (dict): request under dict format
         """
-        for key in request.keys():
+        for key in list(request.keys()):
             if key == u'command':
                 self.command = request[key]
             elif key == u'type':
@@ -919,7 +919,7 @@ class RequestExecutor(Thread):
 
         #build new mappings for process convenience
         self.new_mappings = {}
-        for src in self.mappings.keys():
+        for src in list(self.mappings.keys()):
             src_parts = self.split_path(src)
             new_src = SEPARATOR.join(src_parts)
             link_parts = self.split_path(self.mappings[src][u'link'])
@@ -1011,7 +1011,7 @@ class RequestExecutor(Thread):
             self.logger.debug('path=%s new_path=%s' % (path, new_path))
 
             #look for valid mapping
-            for mapping_src in self.new_mappings.keys():
+            for mapping_src in list(self.new_mappings.keys()):
                 self.logger.debug(' --> %s startswith %s' % (new_path, mapping_src))
                 if new_path.startswith(mapping_src):
                     #found mapping
@@ -1496,7 +1496,7 @@ class ConfigFile():
                 break
 
         #load profile
-        return conf[conf.keys()[profile_index]]
+        return conf[list(conf.keys())[profile_index]]
 
     def __add_profile_menu(self, conf):
         """
@@ -1543,15 +1543,15 @@ class ConfigFile():
         self.clear_terminal()
         print('Type profile number to delete:')
         index = 0
-        max_profiles = len(conf.keys())
-        for profile_name in conf.keys():
+        max_profiles = len(list(conf.keys()))
+        for profile_name in list(conf.keys()):
             profile_string = self._get_profile_entry_string(profile_name, conf[profile_name])
             print(u' %d) %s' % (index, profile_string))
             index += 1
         print(u'Empty entry to return back')
         choice = ''
         while len(choice) == 0:
-            choice = input(u'>> ').decode(u'utf-8')
+            choice = input(u'>> ')
             if choice.strip() == u'':
                 #return back
                 return conf
@@ -1564,7 +1564,7 @@ class ConfigFile():
                     choice = u''
 
         #perform deletion
-        profile_name = conf.keys()[int(choice)]
+        profile_name = list(conf.keys())[int(choice)]
         self.delete_profile(profile_name)
 
         return self.load()
@@ -1595,11 +1595,11 @@ class ConfigFile():
         self.clear_terminal()
         print(u'Type profile number to load it:')
         index = 0
-        max_profiles = len(conf.keys())
-        if len(conf.keys()) == 0:
+        max_profiles = len(list(conf.keys()))
+        if len(list(conf.keys())) == 0:
             #no profile
             print(u'  No profile yet. Please add new one.')
-        for profile_name in conf.keys():
+        for profile_name in list(conf.keys()):
             profile_string = self._get_profile_entry_string(profile_name, conf[profile_name])
             print(u' %d) %s' % (index, profile_string))
             index += 1
@@ -1951,11 +1951,11 @@ class SlaveConfigFile(ConfigFile):
         log_file = u''
 
         #read log file path
-        if self.KEY_LOG_FILE in profile.keys():
+        if self.KEY_LOG_FILE in list(profile.keys()):
             log_file = 'log file %s and ' % profile[self.KEY_LOG_FILE]
 
         #read mappings
-        for src in profile[u'mappings'].keys():
+        for src in list(profile[u'mappings'].keys()):
             dest = profile[u'mappings'][src][u'dest']
             link = profile[u'mappings'][src][u'link']
             if link:
