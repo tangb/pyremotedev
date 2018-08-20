@@ -6,6 +6,7 @@ except ImportError:
     from distutils.core import setup
 from pyremotedev import __version__ as VERSION
 from setuptools.command.install import install
+import subprocess
 
 SYSTEMD_SERVICE = """[Unit]
 Description=PyRemoteDev
