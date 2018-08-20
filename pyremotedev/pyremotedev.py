@@ -18,7 +18,7 @@ except:
     import ConfigParser as configparser
 import shutil
 import traceback
-from version import __version__
+from .version import __version__
 from appdirs import user_data_dir
 from threading import Thread
 from collections import deque
@@ -38,7 +38,6 @@ VERSION = __version__
 DEFAULT_SSH_PORT = u'22'
 DEFAULT_SSH_USERNAME = u'root'
 DEFAULT_SSH_PASSWORD = u'CleepR00t'
-DEFAULT_LOCAL_DIR = os.getcwd()
 
 class RequestInfo(object):
     """
@@ -1689,6 +1688,7 @@ class MasterConfigFile(ConfigFile):
             config_file (string): config file path
         """
         ConfigFile.__init__(self, config_file)
+        self.current_local_dir = os.getcwd()
 
     def _get_profile_values(self, profile_name, profile):
         """
@@ -1766,9 +1766,9 @@ class MasterConfigFile(ConfigFile):
                 ssh_password = DEFAULT_SSH_PASSWORD
         ssh_password = ssh_password.replace(u'%', u'%%')
 
-        local_dir = input(u'Local directory to watch (default %s): ' % DEFAULT_LOCAL_DIR)
+        local_dir = input(u'Local directory to watch (default %s): ' % self.current_local_dir)
         if len(local_dir) == 0:
-            local_dir = DEFAULT_LOCAL_DIR
+            local_dir = self.current_local_dir
 
         #return new profile
         return (
