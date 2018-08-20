@@ -93,7 +93,7 @@ def application_parameters():
                 if params[u'slave']:
                     raise Exception(u'You can\'t enable both slave and master mode')
                 params[u'master'] = True
-            elif opt in (u'-m', u'--slave'):
+            elif opt in (u'-s', u'--slave'):
                 if params['master']:
                     raise Exception(u'You can\'t enable both slave and master mode')
                 params[u'slave'] = True

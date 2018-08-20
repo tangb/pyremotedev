@@ -1877,11 +1877,11 @@ class SlaveConfigFile(ConfigFile):
 
         profile_name = u''
         while len(profile_name) == 0:
-            profile_name = input(u'Profile name (cannot be empty): ')
+            profile_name = input(u'Profile name: ')
 
         file_ok = False
         while not file_ok:
-            log_file = input(u'Log file fullpath to watch (empty if no file to watch): ')
+            log_file = input(u'Log file absolute path to watch (empty if no log to watch): ')
             try:
                 if len(log_file)==0:
                     break
@@ -1921,7 +1921,7 @@ class SlaveConfigFile(ConfigFile):
             link = u''
             link_ok = False
             while not link_ok:
-                link = input(u'Create link into directory (empty when no link): ')
+                link = input(u'Create symbolic link into directory (empty when no link): ')
                 if link == u'q' or link == u'':
                     break
                 if not os.path.exists(link):
