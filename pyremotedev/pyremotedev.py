@@ -35,7 +35,7 @@ SEPARATOR = u'$_$'
 TEST_REQUEST = u'ping'
 VERSION = __version__
 
-DEFAULT_SSH_PORT = 22
+DEFAULT_SSH_PORT = u'22'
 DEFAULT_SSH_USERNAME = u'root'
 DEFAULT_SSH_PASSWORD = u'CleepR00t'
 DEFAULT_LOCAL_DIR = os.getcwd()
@@ -141,6 +141,31 @@ class RequestCommand(object):
             type_ = u'FILE'
 
         return u'RequestCommand(command:%s, type:%s, src:%s, dest:%s, content:%d bytes)' % (command, type_, self.src, self.dest, len(self.content))
+
+    def log_str(self):
+        """
+        Return log string
+
+        Returns:
+            string
+        """
+        command = None
+        if self.command == self.COMMAND_UPDATE:
+            command = u'Update'
+        elif self.command == self.COMMAND_MOVE:
+            command = u'Move'
+        elif self.command == self.COMMAND_CREATE:
+            command = u'Create'
+        elif self.command == self.COMMAND_DELETE:
+            command = u'Delete'
+
+        type_ = None
+        if self.type == self.TYPE_DIR:
+            type_ = u'directory'
+        else:
+            type_ = u'file'
+
+        return u'%s %s "%s" to "%s"' % (command, type_, self.src, self.dest)
 
     def from_dict(self, request):
         """
@@ -557,6 +582,8 @@ class Synchronizer(Thread):
             self.logger.debug('>>>>> socket send request (%d bytes) %s' % (len(raw), request))
             self.socket.send(raw)
             self.__send_socket_attemps = 0
+
+            self.logger.info(request.log_str())
 
             return True
 
@@ -1406,7 +1433,8 @@ class ConfigFile():
         """
         Clear terminal
         """
-        os.system(u'cls' if platform.system() == u'Windows' else u'clear')
+        if self.logger.getEffectiveLevel() != logging.DEBUG:
+            os.system(u'cls' if platform.system() == u'Windows' else u'clear')
 
     def load(self):
         """
