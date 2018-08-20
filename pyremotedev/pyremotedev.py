@@ -165,7 +165,10 @@ class RequestCommand(object):
         else:
             type_ = u'file'
 
-        return u'%s %s "%s" to "%s"' % (command, type_, self.src, self.dest)
+        if self.command in (self.COMMAND_UPDATE, self.COMMAND_CREATE, self.COMMAND_DELETE):
+            return u'%s %s "%s"' % (command, type_, self.src)
+        else:
+            return u'%s %s "%s" to "%s"' % (command, type_, self.src, self.dest)
 
     def from_dict(self, request):
         """
@@ -340,17 +343,21 @@ class LogFileWatcher(Thread):
 
             #handle new lines
             while self.running:
-                for log_line in Pygtail(self.log_file_path):
-                    self.logger.debug('New log line: %s' % log_line)
-                    self.send_log_callback(log_line)
+                try:
+                    for log_line in Pygtail(self.log_file_path):
+                        self.logger.debug('New log line: %s' % log_line)
+                        self.send_log_callback(log_line)
+    
+                    #pause 
+                    time.sleep(0.5)
 
-                #pause 
-                time.sleep(0.5)
+                except:
+                    self.logger.exception(u'Exception on log watcher:')
 
         except:
-            self.logger.exception('Exception on log watcher:')
+            self.logger.exception(u'Fatal exception on log watcher:')
 
-        self.logger.debug('Thread stopped')
+        self.logger.debug(u'Thread stopped')
 
 
 
@@ -433,12 +440,14 @@ class Synchronizer(Thread):
         """
         #create new handler
         handler = RotatingFileHandler('remote_%s.log' % self.remote_host, maxBytes=2048000, backupCount=2, encoding='utf-8')
-        formatter = logging.Formatter('%(asctime)s %(name)-12s[%(filename)s:%(lineno)d] %(levelname)-5s : %(message)s')
+        #formatter = logging.Formatter('%(asctime)s %(name)-12s[%(filename)s:%(lineno)d] %(levelname)-5s : %(message)s')
+        formatter = logging.Formatter('%(message)s')
         handler.setFormatter(formatter)
         
         #create new remote logger
         self.remote_logger = logging.getLogger('remote')
         self.remote_logger.handlers = [handler]
+        self.remote_logger.setLevel(logging.INFO)
 
     def __open_tunnel(self):
         """
@@ -616,7 +625,9 @@ class Synchronizer(Thread):
             if not self.is_connected():
                 if self.connect():
                     can_send = True
-                    self.logger.info(u'Connected')
+                    self.logger.info(u'------------------------------------------------------')
+                    self.logger.info(u'Connected. Ready to synchronize files (CTRL-C to stop)')
+                    self.logger.info(u'------------------------------------------------------')
             else:
                 #already connected
                 can_send = True
@@ -645,6 +656,7 @@ class Synchronizer(Thread):
                 raw = self.socket.recv(1024)
                 if raw:
                     request = self.buffer.process(raw)
+                    self.logger.debug('==> Received request: %s' % request)
                     if not request:
                         pass
 
@@ -671,7 +683,7 @@ class Synchronizer(Thread):
                     elif request.log_message:
                         #received log message
                         self.logger.debug(u'Client sent log message')
-                        self.remote_logger.debug(request.log_message)
+                        self.remote_logger.info(request.log_message)
 
             except socket.timeout:
                 pass
