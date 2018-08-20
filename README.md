@@ -13,11 +13,11 @@ This will install pyremotedev python module and pyremotedev binary.
 
 ## Compatibility
 Pyremotedev has been tested on:
-Master on:
-  *  Debian/Raspbian
-  *  Windows (please make sure to add ```<python install dir>/scripts``` dir in your path)
-Slave on:
-  *  Debian/Raspbian
+* Master on:
+  * Debian/Raspbian
+  * Windows (please make sure to add ```<python install dir>/scripts``` dir in your path)
+* Slave on:
+  * Debian/Raspbian
 
 Your remote host must have ssh server installed and running.
 
