@@ -26,10 +26,15 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 from sshtunnel import SSHTunnelForwarder
 import bson
+bson.patch_socket()
 try:
     input = raw_input
 except Exception:
     pass
+try:
+    _unicode = unicode
+except NameError:
+    _unicode = str
 
 SEPARATOR = u'$_$'
 TEST_REQUEST = u'ping'
@@ -61,6 +66,8 @@ class RequestInfo(object):
             return u'RequestInfo(log_record: %s)' % self.log_record['msg']
         elif self.log_message:
             return u'RequestInfo(log_message: %s)' % self.log_message
+        else:
+            return u'RequestInfo(empty)'
 
     def from_dict(self, request):
         """
@@ -223,7 +230,7 @@ class Buffer(object):
             request_object (object): request class instance to build
         """
         self.buffer = '' #not unicode!
-        self.request_object = request_object
+        self.__request_object = request_object
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def process(self, raw):
@@ -245,7 +252,7 @@ class Buffer(object):
                 #extract content from raw
                 _, header, data = self.buffer.split('::', 2)
                 header_length = len(header) + 4 #add length of 2x"::"
-                self.logger.debug('Header="%s" (%d bytes)' % (header, header_length))
+                self.logger.debug('Header="::%s::" (%d bytes)' % (header, header_length))
                 try:
                     data_length = int(header.split('=')[1])
                 except ValueError:
@@ -254,18 +261,24 @@ class Buffer(object):
                     continue
 
                 #parse data
-                self.logger.debug(u'header length=%d, len(data)=%d' % (data_length, len(data)))
+                self.logger.debug(u'Header length=%d, len(data)=%d len(buffer)=%d' % (data_length, len(data), len(self.buffer)))
                 if data_length > 0 and self.buffer and len(self.buffer) >= data_length:
                     #enough data buffered, rebuild request
 
                     #get data and reduce buffer
                     data = data[:data_length]
                     self.buffer = self.buffer[data_length+header_length:]
-                    self.logger.debug('Buffer status (first 10 chars): "%s" (%d bytes)' % (self.buffer[:10], len(self.buffer)))
+                    self.logger.debug('Remaining buffer (first 10 chars): "%s" (%d bytes)' % (self.buffer[:10], len(self.buffer)))
+
+                    #convert data to bytes-string (mandatory for bson and python3 and 2 compatibility)
+                    self.logger.debug('Data type: %s' % type(data))
+                    if isinstance(data, str):
+                        self.logger.debug('Encode data to bytes-string necessary for bson')
+                        data = str.encode(data)
 
                     #get request and push to executor
                     req = bson.loads(data)
-                    request = self.request_object()
+                    request = self.__request_object()
                     request.from_dict(req)
                     self.logger.debug(u'Received request: %s' % request)
                     return request
@@ -316,6 +329,7 @@ class LogFileWatcher(Thread):
             send_log_callback (function): callback to send log message
         """
         Thread.__init__(self)
+        Thread.daemon = True
 
         #members
         self.running = True
@@ -344,6 +358,9 @@ class LogFileWatcher(Thread):
             while self.running:
                 try:
                     for log_line in Pygtail(self.log_file_path):
+                        if isinstance(log_line, str):
+                            log_line = log_line.decode('utf-8')
+                        log_line = log_line.strip()
                         self.logger.debug('New log line: %s' % log_line)
                         self.send_log_callback(log_line)
     
@@ -387,7 +404,6 @@ class RemoteLogHandler(logging.Handler):
 
 
 
-
 class Synchronizer(Thread):
     """
     Synchronizer is in charge to send requests to remote throught ssh tunnel.
@@ -406,6 +422,7 @@ class Synchronizer(Thread):
             forward_port (int): forwarded port (default is 52666)
         """
         Thread.__init__(self)
+        Thread.daemon = True
 
         #members
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -444,7 +461,7 @@ class Synchronizer(Thread):
         handler.setFormatter(formatter)
         
         #create new remote logger
-        self.remote_logger = logging.getLogger('remote')
+        self.remote_logger = logging.getLogger('RemoteLog')
         self.remote_logger.handlers = [handler]
         self.remote_logger.setLevel(logging.INFO)
 
@@ -488,7 +505,10 @@ class Synchronizer(Thread):
 
                 #test if remote service is really running
                 for i in range(8):
-                    self.socket.send(TEST_REQUEST)
+                    data = TEST_REQUEST
+                    if isinstance(data, _unicode):
+                        data = data.encode('utf-8')
+                    self.socket.send(data)
                     time.sleep(0.25)
 
                 self.__socket_connected = True
@@ -498,7 +518,8 @@ class Synchronizer(Thread):
                 return False
 
         except Exception:
-            #self.logger.exception(u'Socket exception:')
+            if self.logger.getEffectiveLevel() == logging.DEBUG:
+                self.logger.exception(u'Socket exception:')
             self.__socket_connected = False
 
         return self.__socket_connected
@@ -588,6 +609,8 @@ class Synchronizer(Thread):
             data = bson.dumps(request.to_dict())
             raw = '::LENGTH=%d::%s' % (len(data), data)
             self.logger.debug('>>>>> socket send request (%d bytes) %s' % (len(raw), request))
+            if isinstance(raw, _unicode):
+                raw = raw.encode('utf-8')
             self.socket.send(raw)
             self.__send_socket_attemps = 0
 
@@ -619,6 +642,7 @@ class Synchronizer(Thread):
         """
         Main process
         """
+        receive_attempts = 0
         while self.running:
             can_send = False
             if not self.is_connected():
@@ -633,8 +657,8 @@ class Synchronizer(Thread):
 
             if not can_send:
                 #not connected, retry
-                self.logger.debug(u'Not connected, retry in 1 second')
-                time.sleep(1.0)
+                self.logger.debug(u'Not connected, retry in 2 seconds')
+                time.sleep(2.0)
                 continue
 
             if not self.running:
@@ -653,9 +677,11 @@ class Synchronizer(Thread):
             #receive data from server
             try:
                 raw = self.socket.recv(1024)
+                self.logger.debug('Received raw of len %d of type %s' % (len(raw), type(raw)))
+                raw = raw.decode('utf-8')
                 if raw:
                     request = self.buffer.process(raw)
-                    self.logger.debug('==> Received request: %s' % request)
+                    self.logger.debug(u'==> Received request: %s' % request)
                     if not request:
                         pass
 
@@ -684,12 +710,22 @@ class Synchronizer(Thread):
                         self.logger.debug(u'Client sent log message')
                         self.remote_logger.info(request.log_message)
 
+                else:
+                    #nothing received, pause
+                    receive_attempts += 1
+                    time.sleep(0.25)
+
+                    if receive_attempts>=8:
+                        #problem with connection, close it
+                        raise Exception(u'Connection with remote seems to be lost')
+
             except socket.timeout:
                 pass
 
             except Exception:
                 #error on socket. disconnect
-                self.logger.exception('Exception on server process:')
+                if self.logger.getEffectiveLevel() == logging.DEBUG:
+                    self.logger.exception('Exception on server process:')
                 self.disconnect()
 
         self.logger.debug(u'Synchronizer terminated')
@@ -908,6 +944,7 @@ class RequestExecutor(Thread):
             debug (bool): enable debug
         """
         Thread.__init__(self)
+        Thread.daemon = True
 
         #members
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -1195,6 +1232,7 @@ class RemoteClient(Thread):
             external_log_handler_file (string): external log file to watch when LOG_HANDLER_EXTERNAL
         """
         Thread.__init__(self)
+        Thread.daemon = True
 
         #members
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -1233,6 +1271,10 @@ class RemoteClient(Thread):
                 msg = record.__dict__['msg'] + '\nTraceback (most recent call last):\n' + ''.join(traceback.format_tb(record.__dict__['exc_info'][2])) + type(record.__dict__['exc_info'][1]).__name__ + ': ' + record.__dict__['exc_info'][1].message
             else:
                 msg = record.__dict__['msg']
+            if len(msg)==0:
+                #drop empty message
+                self.logger.debug('Drop empty message')
+                return
             request.log_record = {
                 'name': record.__dict__['name'],
                 'lvl': record.__dict__['levelno'],
@@ -1255,6 +1297,8 @@ class RemoteClient(Thread):
                 data = bson.dumps(request.to_dict())
                 raw = '::LENGTH=%d::%s' % (len(data), data)
                 #self.logger.debug('>>>>> socket send log record (%d bytes) %s' % (len(raw), request))
+                if isinstance(raw, _unicode):
+                    raw = raw.encode('utf-8')
                 self.clientsocket.send(raw)
 
             except Exception:
@@ -1278,6 +1322,8 @@ class RemoteClient(Thread):
                 #send log message
                 data = bson.dumps(request.to_dict())
                 raw = '::LENGTH=%d::%s' % (len(data), data)
+                if isinstance(raw, _unicode):
+                    raw = raw.encode('utf-8')
                 self.clientsocket.send(raw)
 
             except Exception:
@@ -1371,6 +1417,8 @@ class RemoteClient(Thread):
             data = bson.dumps(request.to_dict())
             raw = '::LENGTH=%d::%s' % (len(data), data)
             #self.logger.debug('>>>>> socket send request (%d bytes) %s' % (len(raw), request))
+            if isinstance(raw, _unicode):
+                raw = raw.encode('utf-8')
             self.clientsocket.send(raw)
 
             #close socket
@@ -1979,6 +2027,7 @@ class PyRemoteDevMaster(Thread):
         Constructor
         """
         Thread.__init__(self)
+        Thread.daemon = True
 
         #members
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -2043,6 +2092,7 @@ class PyRemoteDevSlave(Thread):
             debug (bool): enable debug
         """
         Thread.__init__(self)
+        Thread.daemon = True
 
         #members
         self.profile = profile
