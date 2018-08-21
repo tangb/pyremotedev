@@ -10,12 +10,6 @@ import platform
 from appdirs import user_data_dir
 from pyremotedev import pyremotedev
 
-try:
-    execfile
-except:
-    def execfile(filename):
-        return exec(open(filename).read())
-
 logging.basicConfig(level=logging.INFO, format=u'%(asctime)s %(levelname)s [%(name)s]: %(message)s')
 
 APP_NAME = u'pyremotedev'
@@ -28,7 +22,7 @@ logger = logging.getLogger(u'main')
 DAEMON_PROFILE_NAME = None
 DAEMON_MODE = None
 if platform.system() == 'Linux' and os.path.exists('/etc/default/pyremotedev.conf'):
-    execfile('/etc/default/pyremotedev.conf')
+    exec(open('/etc/default/pyremotedev.conf').read(), globals())
 
 
 def reset_logging(level, to_file=None):
