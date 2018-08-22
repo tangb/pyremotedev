@@ -1526,7 +1526,7 @@ class ConfigFile():
         Return:
             dict: dict of profile values
         """
-        raise NotImplemented('Method _get_profile_values must be implemented!')
+        raise NotImplementedError('Method _get_profile_values must be implemented!')
 
     def select_profile(self):
         """
@@ -1576,7 +1576,7 @@ class ConfigFile():
                     dict: dict of new profile values
                 )
         """
-        raise NotImplemented('Method _get_new_profile_values must be implemented!')
+        raise NotImplementedError('Method _get_new_profile_values must be implemented!')
 
     def __delete_profile_menu(self, conf):
         """
@@ -1624,7 +1624,7 @@ class ConfigFile():
         Return:
             string: entry string
         """
-        raise NotImplemented('Method _get_profile_entry_string must be implemented!')
+        raise NotImplementedError('Method _get_profile_entry_string must be implemented!')
 
     def __load_profile_menu(self, conf):
         """
