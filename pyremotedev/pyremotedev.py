@@ -26,7 +26,6 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 from sshtunnel import SSHTunnelForwarder
 import bson
-bson.patch_socket()
 try:
     input = raw_input
 except Exception:
@@ -274,7 +273,7 @@ class Buffer(object):
                     self.logger.debug('Data type: %s' % type(data))
                     if isinstance(data, str):
                         self.logger.debug('Encode data to bytes-string necessary for bson')
-                        data = str.encode(data)
+                        data = data.encode('utf-8')
 
                     #get request and push to executor
                     req = bson.loads(data)
